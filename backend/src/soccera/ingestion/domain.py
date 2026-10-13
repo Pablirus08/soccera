@@ -101,6 +101,43 @@ class DomainPlayerMatchStat(BaseModel):
     stats: dict[str, float] = {}
 
 
+class DomainShot(BaseModel):
+    """One shot. Coordinates are 0-100 percentages of the pitch: `x` is the
+    distance from the goal being attacked (0 = goal line), `y` the width."""
+
+    source_id: str
+    match_source_id: str
+    team_source_id: str
+    player_source_id: str | None = None
+    minute: int
+    added_time: int | None = None
+    x: float
+    y: float
+    shot_type: str  # goal / save / miss / block / post
+    situation: str | None = None  # regular / corner / free-kick / ...
+    body_part: str | None = None
+    goal_mouth_location: str | None = None
+    xg: float | None = None
+    xgot: float | None = None
+
+
+class DomainMomentum(BaseModel):
+    """Attacking-pressure curve: (minute, value) with value > 0 when the
+    home team dominates and < 0 when the away team does."""
+
+    match_source_id: str
+    points: list[tuple[float, int]]
+
+
+class DomainTeamHeatmap(BaseModel):
+    """Outfield players' touch positions for one team in one match, 0-100
+    coordinates with the team attacking toward x = 100."""
+
+    match_source_id: str
+    team_source_id: str
+    points: list[tuple[float, float]]
+
+
 class DomainMatchEvent(BaseModel):
     match_source_id: str
     team_source_id: str

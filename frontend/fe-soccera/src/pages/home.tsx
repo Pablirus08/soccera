@@ -11,7 +11,8 @@ import { lastPlayedRound } from "@/lib/football"
 import { useSnapshot } from "@/lib/league-data"
 
 export function HomePage() {
-  const { standings, matches, upcoming, players } = useSnapshot()
+  const { standings, matches, upcoming, players, predictions } = useSnapshot()
+  const predictionById = new Map(predictions.matches.map((p) => [p.source_id, p]))
   const played = lastPlayedRound(matches)
   const nextRound = upcoming[0]?.round
 
@@ -41,11 +42,13 @@ export function HomePage() {
               <CalendarDaysIcon className="size-4 text-muted-foreground" /> Próxima jornada
             </CardTitle>
             <CardDescription>
-              {nextRound ? `Jornada ${nextRound} · hora de Costa Rica` : "Sin partidos programados"}
+              {nextRound
+                ? `Jornada ${nextRound} · hora de Costa Rica · probabilidades del modelo`
+                : "Sin partidos programados"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <UpcomingMatches matches={upcoming} />
+            <UpcomingMatches matches={upcoming} predictions={predictionById} />
           </CardContent>
         </Card>
       </div>

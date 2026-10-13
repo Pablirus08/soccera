@@ -7,10 +7,12 @@ Independent-Poisson goals model (Maher, 1982):
 Higher attack = scores more; higher defense = concedes less. Fit by maximum
 likelihood with a small L2 penalty, which also pins down the otherwise free
 offset between attack and defense and keeps teams with few matches near
-average. Dixon-Coles' low-score correction and time decay are not here yet.
+average. Optional per-match weights give Dixon-Coles style time decay
+(see time_decay_weights); the low-score correction is not here yet.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 from scipy.optimize import minimize
@@ -46,7 +48,10 @@ class PoissonModel:
         self.defense = defense
 
     @classmethod
-    def fit(cls, results: list[MatchResult]) -> "PoissonModel":
+    def fit(
+        cls, results: list[MatchResult], weights: list[float] | None = None
+    ) -> "PoissonModel":
+        """`weights` scale each match's log-likelihood (e.g. time decay); default 1."""
         team_ids = sorted({r.home_team_id for r in results} | {r.away_team_id for r in results})
         if len(team_ids) < 2:
             raise ValueError("Need matches between at least 2 teams to fit")
@@ -57,6 +62,7 @@ class PoissonModel:
         away = np.array([index[r.away_team_id] for r in results])
         home_goals = np.array([r.home_goals for r in results], dtype=float)
         away_goals = np.array([r.away_goals for r in results], dtype=float)
+        w = np.ones(len(results)) if weights is None else np.asarray(weights, dtype=float)
 
         def neg_log_likelihood(params: np.ndarray) -> tuple[float, np.ndarray]:
             home_adv, attack, defense = params[0], params[1 : n + 1], params[n + 1 :]
@@ -65,10 +71,10 @@ class PoissonModel:
             lam_h, lam_a = np.exp(log_lam_h), np.exp(log_lam_a)
 
             # Poisson log-likelihood without the constant log(k!) term.
-            ll = np.sum(home_goals * log_lam_h - lam_h + away_goals * log_lam_a - lam_a)
+            ll = np.sum(w * (home_goals * log_lam_h - lam_h + away_goals * log_lam_a - lam_a))
             penalty = L2_PENALTY * (np.sum(attack**2) + np.sum(defense**2))
 
-            resid_h, resid_a = home_goals - lam_h, away_goals - lam_a
+            resid_h, resid_a = w * (home_goals - lam_h), w * (away_goals - lam_a)
             grad = np.zeros_like(params)
             grad[0] = -np.sum(resid_h)
             g_attack = -(np.bincount(home, resid_h, n) + np.bincount(away, resid_a, n))
@@ -96,11 +102,15 @@ class PoissonModel:
         lam_a = float(np.exp(att_a - def_h))
         return lam_h, lam_a
 
-    def predict(self, home_team_id: int, away_team_id: int) -> OutcomeProbabilities:
+    def score_matrix(self, home_team_id: int, away_team_id: int) -> np.ndarray:
+        """grid[i, j] = P(home scores i, away scores j), for 0..MAX_GOALS."""
         lam_h, lam_a = self.expected_goals(home_team_id, away_team_id)
         goals = np.arange(MAX_GOALS + 1)
-        # grid[i, j] = P(home scores i, away scores j)
-        grid = np.outer(poisson.pmf(goals, lam_h), poisson.pmf(goals, lam_a))
+        return np.outer(poisson.pmf(goals, lam_h), poisson.pmf(goals, lam_a))
+
+    def predict(self, home_team_id: int, away_team_id: int) -> OutcomeProbabilities:
+        lam_h, lam_a = self.expected_goals(home_team_id, away_team_id)
+        grid = self.score_matrix(home_team_id, away_team_id)
         home_win, draw, away_win = np.tril(grid, -1).sum(), np.trace(grid), np.triu(grid, 1).sum()
         total = home_win + draw + away_win  # renormalize the truncated tail
         return OutcomeProbabilities(
@@ -110,3 +120,10 @@ class PoissonModel:
             draw=float(draw / total),
             away_win=float(away_win / total),
         )
+
+
+def time_decay_weights(
+    match_dates: list[datetime], reference: datetime, half_life_days: float
+) -> list[float]:
+    """Exponential decay: a match half_life_days before `reference` weighs 0.5."""
+    return [0.5 ** ((reference - d).total_seconds() / 86400 / half_life_days) for d in match_dates]

@@ -17,6 +17,8 @@
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
     --color-chart-5: var(--chart-5);
+    --color-diverge-pos: var(--diverge-pos);
+    --color-diverge-neg: var(--diverge-neg);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
@@ -72,6 +74,12 @@
     --chart-3: #1baf7a;
     --chart-4: #eda100;
     --chart-5: #e87ba4;
+    /* Diverging pair (above / below expectation); neutral midpoint is --muted. */
+    --diverge-pos: #2a78d6;
+    --diverge-neg: #e34948;
+    /* Pitch drawings: neutral surface so data colors stay the focus. */
+    --pitch-bg: #f4f4f2;
+    --pitch-line: #c3c2b7;
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -107,6 +115,10 @@
     --chart-3: #199e70;
     --chart-4: #c98500;
     --chart-5: #d55181;
+    --diverge-pos: #3987e5;
+    --diverge-neg: #e66767;
+    --pitch-bg: #1f1f1e;
+    --pitch-line: #4a4a47;
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);

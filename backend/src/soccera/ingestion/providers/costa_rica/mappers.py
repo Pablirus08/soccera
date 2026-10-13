@@ -10,14 +10,20 @@ from soccera.ingestion.domain import (
     DomainMatch,
     DomainMatchEvent,
     DomainMatchStatistic,
+    DomainMomentum,
     DomainPlayer,
     DomainPlayerMatchStat,
+    DomainShot,
     DomainTeam,
+    DomainTeamHeatmap,
 )
 from soccera.ingestion.providers.costa_rica.schemas import (
     RawEventEntry,
+    RawGraphPoint,
+    RawHeatmap,
     RawIncidentEntry,
     RawLineupPlayer,
+    RawShot,
     RawSquadPlayer,
     RawStatisticPeriod,
     RawTeamRef,
@@ -208,4 +214,40 @@ def map_lineup_player(
         minutes_played=int(minutes) if minutes is not None else None,
         rating=rating,
         stats=stats,
+    )
+
+
+def map_shot(
+    raw: RawShot, match_source_id: str, home_team_id: str, away_team_id: str
+) -> DomainShot:
+    return DomainShot(
+        source_id=str(raw.id),
+        match_source_id=match_source_id,
+        team_source_id=home_team_id if raw.isHome else away_team_id,
+        player_source_id=str(raw.player.id) if raw.player else None,
+        minute=raw.time,
+        # Same 999 "not applicable" sentinel as incidents.
+        added_time=raw.addedTime if raw.addedTime and raw.addedTime < 900 else None,
+        x=raw.playerCoordinates.x,
+        y=raw.playerCoordinates.y,
+        shot_type=raw.shotType,
+        situation=raw.situation,
+        body_part=raw.bodyPart,
+        goal_mouth_location=raw.goalMouthLocation,
+        xg=raw.xg,
+        xgot=raw.xgot,
+    )
+
+
+def map_momentum(points: list[RawGraphPoint], match_source_id: str) -> DomainMomentum:
+    return DomainMomentum(
+        match_source_id=match_source_id, points=[(p.minute, p.value) for p in points]
+    )
+
+
+def map_heatmap(raw: RawHeatmap, match_source_id: str, team_source_id: str) -> DomainTeamHeatmap:
+    return DomainTeamHeatmap(
+        match_source_id=match_source_id,
+        team_source_id=team_source_id,
+        points=[(p.x, p.y) for p in raw.playerPoints],
     )

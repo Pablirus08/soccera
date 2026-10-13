@@ -11,6 +11,7 @@ from soccera.storage.models.match import Match
 from soccera.storage.models.match_event import MatchEvent
 from soccera.storage.models.match_player_stat import MatchPlayerStat
 from soccera.storage.models.match_statistic import MatchStatistic
+from soccera.storage.models.match_visuals import MatchMomentum, MatchShot, MatchTeamHeatmap
 from soccera.storage.models.player import Player
 from soccera.storage.models.prediction import Prediction
 from soccera.storage.models.season import Season
@@ -30,6 +31,9 @@ __all__ = [
     "MatchStatistic",
     "MatchEvent",
     "MatchPlayerStat",
+    "MatchShot",
+    "MatchMomentum",
+    "MatchTeamHeatmap",
     "Prediction",
     "IngestionRun",
 ]

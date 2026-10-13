@@ -8,25 +8,34 @@ from soccera.ingestion.domain import (
     DomainMatch,
     DomainMatchEvent,
     DomainMatchStatistic,
+    DomainMomentum,
     DomainPlayer,
     DomainPlayerMatchStat,
     DomainSeason,
+    DomainShot,
     DomainTeam,
+    DomainTeamHeatmap,
 )
 from soccera.ingestion.providers.costa_rica.client import SofascoreClient, SofascoreError
 from soccera.ingestion.providers.costa_rica.mappers import (
     map_fixture,
     map_fixture_event,
     map_fixture_statistics,
+    map_heatmap,
     map_lineup_player,
+    map_momentum,
     map_player,
+    map_shot,
     map_team,
     season_year_from_sofascore_year,
 )
 from soccera.ingestion.providers.costa_rica.schemas import (
     RawEventEntry,
+    RawGraphPoint,
+    RawHeatmap,
     RawIncidentEntry,
     RawLineupSide,
+    RawShot,
     RawSquadPlayer,
     RawStatisticPeriod,
     RawTeamRef,
@@ -238,6 +247,31 @@ class SofascoreAdapter(DataSourceAdapter):
 
         periods = [RawStatisticPeriod.model_validate(p) for p in stats.get("statistics", [])]
         return map_fixture_statistics(periods, match_source_id, home_id, away_id)
+
+    def get_fixture_shots(self, match_source_id: str) -> list[DomainShot]:
+        data = self._get_or_empty(f"/event/{match_source_id}/shotmap")
+        if not data:
+            return []
+        home_id, away_id = self._match_team_ids(match_source_id)
+        return [
+            map_shot(RawShot.model_validate(s), match_source_id, home_id, away_id)
+            for s in data.get("shotmap", [])
+        ]
+
+    def get_fixture_momentum(self, match_source_id: str) -> DomainMomentum | None:
+        data = self._get_or_empty(f"/event/{match_source_id}/graph")
+        points = [RawGraphPoint.model_validate(p) for p in data.get("graphPoints", [])]
+        return map_momentum(points, match_source_id) if points else None
+
+    def get_fixture_heatmaps(self, match_source_id: str) -> list[DomainTeamHeatmap]:
+        heatmaps = []
+        for team_id in self._match_team_ids(match_source_id):
+            data = self._get_or_empty(f"/event/{match_source_id}/heatmap/{team_id}")
+            if data:
+                heatmaps.append(
+                    map_heatmap(RawHeatmap.model_validate(data), match_source_id, team_id)
+                )
+        return heatmaps
 
     def get_fixture_player_stats(self, match_source_id: str) -> list[DomainPlayerMatchStat]:
         lineups = self._get_or_empty(f"/event/{match_source_id}/lineups")

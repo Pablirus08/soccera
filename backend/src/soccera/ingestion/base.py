@@ -13,10 +13,13 @@ from soccera.ingestion.domain import (
     DomainMatch,
     DomainMatchEvent,
     DomainMatchStatistic,
+    DomainMomentum,
     DomainPlayer,
     DomainPlayerMatchStat,
     DomainSeason,
+    DomainShot,
     DomainTeam,
+    DomainTeamHeatmap,
 )
 
 
@@ -67,4 +70,14 @@ class DataSourceAdapter(ABC):
     def get_fixture_player_stats(self, match_source_id: str) -> list[DomainPlayerMatchStat]:
         """Lineups + per-player stat lines for a match. Optional: providers
         without player-level data keep this default and sync simply skips it."""
+        return []
+
+    # Optional match visuals: providers without them keep these defaults.
+    def get_fixture_shots(self, match_source_id: str) -> list[DomainShot]:
+        return []
+
+    def get_fixture_momentum(self, match_source_id: str) -> DomainMomentum | None:
+        return None
+
+    def get_fixture_heatmaps(self, match_source_id: str) -> list[DomainTeamHeatmap]:
         return []

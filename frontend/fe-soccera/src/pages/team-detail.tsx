@@ -1,19 +1,15 @@
-import {
-  ArrowLeftIcon,
-  CrosshairIcon,
-  GitCompareArrowsIcon,
-  MapIcon,
-  SparklesIcon,
-} from "lucide-react"
+import { ArrowLeftIcon, GitCompareArrowsIcon } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Link, useParams } from "react-router"
 
-import { ComingSoon } from "@/components/coming-soon"
+import { PredictionCard } from "@/components/analysis/prediction-card"
+import { TeamProfileCard } from "@/components/analysis/team-profile-card"
 import { FormPills } from "@/components/form-pills"
 import { MockBadge } from "@/components/mock-badge"
 import { PageHeader } from "@/components/page-header"
 import { StatTile } from "@/components/stat-tile"
 import { TeamLogo } from "@/components/team-logo"
+import { TeamVisualsSection } from "@/components/team-visuals"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -53,7 +49,7 @@ const goalsConfig = {
 
 export function TeamDetailPage() {
   const { slug } = useParams()
-  const { standings, matches, upcoming, players } = useSnapshot()
+  const { standings, matches, upcoming, players, profiles, predictions } = useSnapshot()
 
   const index = standings.rows.findIndex((r) => teamSlug(r.team_name) === slug)
   const row = standings.rows[index]
@@ -74,6 +70,8 @@ export function TeamDetailPage() {
   const team = row.team_name
   const played = teamMatches(team, matches).filter(isPlayed).reverse()
   const next = upcoming.find((m) => m.home_team === team || m.away_team === team)
+  const nextPrediction = predictions.matches.find((p) => p.home_team === team || p.away_team === team)
+  const profile = profiles.find((p) => p.team_name === team)
   const split = homeAwaySplit(team, matches)
   const squad = players
     .filter((p) => p.team_name === team)
@@ -99,6 +97,11 @@ export function TeamDetailPage() {
           description={`${index + 1}.º lugar · ${row.points} puntos en ${row.played} partidos`}
         >
           <FormPills form={recentForm(team, matches)} />
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/comparar?a=${slug}`}>
+              <GitCompareArrowsIcon data-icon="inline-start" /> Comparar
+            </Link>
+          </Button>
         </PageHeader>
       </div>
 
@@ -108,6 +111,35 @@ export function TeamDetailPage() {
         <StatTile label="Goles a favor" value={row.goals_for} hint={`${perMatch(row.goals_for)} por partido`} />
         <StatTile label="Goles en contra" value={row.goals_against} hint={`${perMatch(row.goals_against)} por partido`} />
       </div>
+
+      {(profile || nextPrediction) && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {profile && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Perfil de juego</CardTitle>
+                <CardDescription>Comparado con el promedio de la liga</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TeamProfileCard team={profile} profiles={profiles} />
+              </CardContent>
+            </Card>
+          )}
+          {nextPrediction && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Predicción del próximo partido</CardTitle>
+                <CardDescription>Jornada {nextPrediction.round} · modelo Poisson</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PredictionCard prediction={nextPrediction} />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      <TeamVisualsSection teamId={row.team_id} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -218,18 +250,23 @@ export function TeamDetailPage() {
                 const r = resultFor(team, m)!
                 const home = m.home_team === team
                 return (
-                  <li key={m.source_id} className="flex items-center gap-2 py-2">
-                    <FormPills form={[r]} />
-                    <span className="min-w-0 flex-1 truncate">
-                      {home ? "vs " : "@ "}
-                      {home ? m.away_team : m.home_team}
-                    </span>
-                    <span className="font-medium tabular-nums">
-                      {home ? `${m.home_score}-${m.away_score}` : `${m.away_score}-${m.home_score}`}
-                    </span>
-                    <span className="w-12 text-right text-xs text-muted-foreground">
-                      {formatShortDate(m.match_date)}
-                    </span>
+                  <li key={m.source_id}>
+                    <Link
+                      to={`/partidos/${m.source_id}`}
+                      className="-mx-2 flex items-center gap-2 rounded-md px-2 py-2 hover:bg-muted/60"
+                    >
+                      <FormPills form={[r]} />
+                      <span className="min-w-0 flex-1 truncate">
+                        {home ? "vs " : "@ "}
+                        {home ? m.away_team : m.home_team}
+                      </span>
+                      <span className="font-medium tabular-nums">
+                        {home ? `${m.home_score}-${m.away_score}` : `${m.away_score}-${m.home_score}`}
+                      </span>
+                      <span className="w-12 text-right text-xs text-muted-foreground">
+                        {formatShortDate(m.match_date)}
+                      </span>
+                    </Link>
                   </li>
                 )
               })}
@@ -269,16 +306,6 @@ export function TeamDetailPage() {
           )}
         </CardContent>
       </Card>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Próximamente</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ComingSoon icon={SparklesIcon} title="Predicción del próximo partido" description="Probabilidades 1X2 con el modelo Poisson del backend" />
-          <ComingSoon icon={CrosshairIcon} title="Goles esperados (xG)" description="Calidad de las ocasiones creadas y concedidas" />
-          <ComingSoon icon={MapIcon} title="Mapa de tiros" description="Dónde remata y desde dónde le rematan" />
-          <ComingSoon icon={GitCompareArrowsIcon} title="Comparar con rival" description="Cara a cara estadístico antes de cada partido" />
-        </div>
-      </section>
     </div>
   )
 }

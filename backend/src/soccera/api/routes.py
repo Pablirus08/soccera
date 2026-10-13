@@ -7,20 +7,34 @@ from soccera.analytics.leagues import list_leagues
 from soccera.analytics.match_report import build_match_report
 from soccera.analytics.match_stats import build_match_stat_averages
 from soccera.analytics.matches import build_match_list
+from soccera.analytics.momentum import build_team_momentum
 from soccera.analytics.players import build_player_season_stats
+from soccera.analytics.predictions import build_predictions
 from soccera.analytics.standings import build_standings
+from soccera.analytics.team_profiles import build_team_profiles
+from soccera.analytics.visuals import (
+    build_head_to_head,
+    build_match_visuals,
+    build_team_visuals,
+)
 from soccera.api.dependencies import get_db
 from soccera.api.schemas import (
     GoalStatsOut,
+    HeadToHeadOut,
     LeagueOut,
     MatchListItemOut,
     MatchReportOut,
+    MatchVisualsOut,
     PlayerSeasonStatsOut,
+    PredictionsOut,
     StandingsOut,
     SyncResultOut,
     SyncStatusOut,
     TeamDisciplineOut,
+    TeamMomentumOut,
+    TeamProfileOut,
     TeamStatAveragesOut,
+    TeamVisualsOut,
 )
 from soccera.ingestion.providers.costa_rica.adapter import SofascoreAdapter
 from soccera.ingestion.providers.costa_rica.client import SofascoreError
@@ -98,6 +112,66 @@ def get_players(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/teams/profiles", response_model=list[TeamProfileOut])
+def get_team_profiles(
+    league: str, season: int, source: str = "sofascore", db: Session = Depends(get_db)
+):
+    """xG for/against, expected points and shot profile per team."""
+    try:
+        return build_team_profiles(db, source, league, season)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/momentum", response_model=list[TeamMomentumOut])
+def get_momentum(
+    league: str, season: int, source: str = "sofascore", db: Session = Depends(get_db)
+):
+    """Per team: how often and how long it dominates, and how well it (and its
+    rivals) turn those spells into goals."""
+    try:
+        return build_team_momentum(db, source, league, season)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/teams/{team_id}/visuals", response_model=TeamVisualsOut)
+def get_team_visuals(
+    team_id: int,
+    league: str,
+    season: int,
+    source: str = "sofascore",
+    db: Session = Depends(get_db),
+):
+    """Season shot map (for and against) and touch heatmap for one team."""
+    try:
+        return build_team_visuals(db, source, league, season, team_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/h2h", response_model=HeadToHeadOut)
+def get_head_to_head(
+    team_a: int, team_b: int, source: str = "sofascore", db: Session = Depends(get_db)
+):
+    """All meetings since 2022 plus the model's forecast with each side at home."""
+    try:
+        return build_head_to_head(db, source, team_a, team_b)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/predictions", response_model=PredictionsOut)
+def get_predictions(
+    league: str, season: int, source: str = "sofascore", db: Session = Depends(get_db)
+):
+    """Poisson-model probabilities for the next round, plus team strength ratings."""
+    try:
+        return build_predictions(db, source, league, season)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/sync/status", response_model=SyncStatusOut)
 def get_sync_status(
     league: str, season: int, source: str = "sofascore", db: Session = Depends(get_db)
@@ -136,6 +210,15 @@ def post_sync(league: str, season: int, force: bool = False):
         raise HTTPException(status_code=502, detail=detail) from exc
     finally:
         adapter.close()
+
+
+@router.get("/matches/{match_source_id}/visuals", response_model=MatchVisualsOut)
+def get_match_visuals(match_source_id: str, source: str = "sofascore", db: Session = Depends(get_db)):
+    """Momentum curve with spells and goals, shots and both teams' heatmaps."""
+    try:
+        return build_match_visuals(db, source, match_source_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/matches/{match_source_id}", response_model=MatchReportOut)

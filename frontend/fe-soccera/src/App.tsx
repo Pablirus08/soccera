@@ -8,7 +8,9 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { LeagueDataProvider } from "@/lib/league-data"
 import { AnalysisPage } from "@/pages/analysis"
+import { ComparePage } from "@/pages/compare"
 import { HomePage } from "@/pages/home"
+import { MatchDetailPage } from "@/pages/match-detail"
 import { TeamDetailPage } from "@/pages/team-detail"
 import { TeamsPage } from "@/pages/teams"
 
@@ -35,6 +37,8 @@ export default function App() {
                 <Route path="equipos" element={<TeamsPage />} />
                 <Route path="equipos/:slug" element={<TeamDetailPage />} />
                 <Route path="analisis" element={<AnalysisPage />} />
+                <Route path="comparar" element={<ComparePage />} />
+                <Route path="partidos/:sourceId" element={<MatchDetailPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

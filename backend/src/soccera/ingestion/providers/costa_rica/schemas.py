@@ -104,3 +104,40 @@ class RawLineupPlayer(BaseModel):
 
 class RawLineupSide(BaseModel):
     players: list[RawLineupPlayer] = []
+
+
+class RawCoordinates(BaseModel):
+    x: float
+    y: float
+
+
+class RawShotPlayer(BaseModel):
+    id: int
+
+
+class RawShot(BaseModel):
+    """An entry of /event/{id}/shotmap -> shotmap."""
+
+    id: int
+    isHome: bool
+    shotType: str
+    situation: str | None = None
+    bodyPart: str | None = None
+    goalMouthLocation: str | None = None
+    playerCoordinates: RawCoordinates
+    player: RawShotPlayer | None = None
+    xg: float | None = None
+    xgot: float | None = None
+    time: int
+    addedTime: int | None = None
+
+
+class RawGraphPoint(BaseModel):
+    minute: float
+    value: int
+
+
+class RawHeatmap(BaseModel):
+    """/event/{id}/heatmap/{teamId}; goalkeeper touches are kept apart."""
+
+    playerPoints: list[RawCoordinates] = []

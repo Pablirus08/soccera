@@ -1,4 +1,4 @@
-import { ChartColumnIcon, HouseIcon, ShieldIcon, TrophyIcon } from "lucide-react"
+import { ChartColumnIcon, GitCompareArrowsIcon, HouseIcon, ShieldIcon, TrophyIcon } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import { TeamLogo } from "@/components/team-logo"
@@ -24,6 +24,7 @@ const NAV = [
   { to: "/", label: "Inicio", icon: HouseIcon },
   { to: "/equipos", label: "Equipos", icon: ShieldIcon },
   { to: "/analisis", label: "Análisis", icon: ChartColumnIcon },
+  { to: "/comparar", label: "Comparar", icon: GitCompareArrowsIcon },
 ]
 
 export function AppSidebar() {

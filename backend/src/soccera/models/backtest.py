@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
-from soccera.models.poisson import MatchResult, PoissonModel
+from soccera.models.poisson import MatchResult, PoissonModel, time_decay_weights
 
 HOME, DRAW, AWAY = 0, 1, 2
 
@@ -78,8 +78,11 @@ def outcome_frequencies(results: list[MatchResult]) -> tuple[float, float, float
 
 
 def walk_forward(
-    matches: list[HistoricalMatch], test_tournaments: list[str]
+    matches: list[HistoricalMatch],
+    test_tournaments: list[str],
+    half_life_days: float | None = None,
 ) -> list[TournamentReport]:
+    """`half_life_days` enables time decay, measured from each test tournament's start."""
     matches = sorted(matches, key=lambda m: m.match_date)
     reports = []
     for tournament in test_tournaments:
@@ -87,9 +90,15 @@ def walk_forward(
         if not test:
             continue
         start = test[0].match_date
-        train = [m.result for m in matches if m.match_date < start]
+        train_matches = [m for m in matches if m.match_date < start]
+        train = [m.result for m in train_matches]
+        weights = (
+            time_decay_weights([m.match_date for m in train_matches], start, half_life_days)
+            if half_life_days
+            else None
+        )
 
-        model = PoissonModel.fit(train)
+        model = PoissonModel.fit(train, weights)
         baseline_probs = outcome_frequencies(train)
 
         model_scores, baseline_scores = Scores(), Scores()

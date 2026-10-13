@@ -1,7 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
 import numpy as np
 import pytest
 
-from soccera.models.poisson import MatchResult, PoissonModel
+from soccera.models.poisson import MatchResult, PoissonModel, time_decay_weights
 
 
 def _simulate(strength: dict[int, tuple[float, float]], home_adv: float, rounds: int, seed: int = 0):
@@ -46,3 +48,9 @@ def test_unseen_team_is_treated_as_average():
     lam_h, lam_a = model.expected_goals(999, 998)
     assert lam_h == pytest.approx(np.exp(model.home_advantage))
     assert lam_a == pytest.approx(1.0)
+
+
+def test_time_decay_halves_weight_every_half_life():
+    ref = datetime(2026, 10, 1, tzinfo=UTC)
+    dates = [ref, ref - timedelta(days=180), ref - timedelta(days=360)]
+    assert time_decay_weights(dates, ref, 180) == pytest.approx([1.0, 0.5, 0.25])

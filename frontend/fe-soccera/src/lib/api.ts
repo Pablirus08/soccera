@@ -1,26 +1,35 @@
 import disciplineMock from "@/mocks/discipline.json"
 import goalsMock from "@/mocks/goals.json"
 import matchesMock from "@/mocks/matches.json"
-import { playersMock } from "@/mocks/players"
+import momentumMock from "@/mocks/momentum.json"
+import playersMock from "@/mocks/players.json"
+import predictionsMock from "@/mocks/predictions.json"
+import profilesMock from "@/mocks/profiles.json"
 import standingsMock from "@/mocks/standings.json"
-import upcomingMock from "@/mocks/upcoming.json"
+import statusMock from "@/mocks/status.json"
 import { nextRoundFixtures } from "@/lib/football"
 import type {
   GoalStats,
+  HeadToHead,
   LeagueSnapshot,
   Match,
+  MatchVisuals,
   PlayerSeasonStats,
   PlayerStat,
   Position,
+  Predictions,
   Standings,
   SyncResult,
   SyncStatus,
   TeamDiscipline,
+  TeamMomentum,
+  TeamProfile,
+  TeamVisuals,
 } from "@/lib/types"
 
 // Set VITE_API_URL (e.g. http://localhost:8000) in .env.local to use the
-// FastAPI backend. Without it the app runs entirely on the JSON snapshot in
-// src/mocks (real Apertura 2026 data exported on 2026-10-13).
+// FastAPI backend. Without it the app runs on src/mocks: raw API responses
+// for Apertura 2026 saved on 2026-10-13 (same shapes as the live backend).
 const API_URL = import.meta.env.VITE_API_URL as string | undefined
 export const isMock = !API_URL
 
@@ -33,8 +42,6 @@ export const LEAGUE = {
 
 // Players who played less than this share of their team's minutes are left out of rankings.
 export const MIN_PLAYER_PARTICIPATION = 0.3
-
-const MOCK_UPDATED_AT = "2026-10-13T18:15:00Z"
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -100,51 +107,80 @@ function toPlayerStat(p: PlayerSeasonStats): PlayerStat | null {
   }
 }
 
+/** Raw backend responses that make up one page load. */
+type ApiPayload = {
+  standings: Standings
+  matches: Match[]
+  goals: GoalStats
+  discipline: TeamDiscipline[]
+  players: PlayerSeasonStats[]
+  profiles: TeamProfile[]
+  predictions: Predictions
+  momentum: TeamMomentum[]
+  status: SyncStatus
+}
+
+function toSnapshot(p: ApiPayload, now: Date): LeagueSnapshot {
+  return {
+    standings: p.standings,
+    matches: p.matches,
+    upcoming: nextRoundFixtures(p.matches, now),
+    goals: p.goals,
+    discipline: p.discipline,
+    players: p.players
+      .filter((pl) => pl.participation >= MIN_PLAYER_PARTICIPATION)
+      .map(toPlayerStat)
+      .filter((pl): pl is PlayerStat => pl !== null),
+    playerSeason: p.players,
+    profiles: p.profiles,
+    predictions: p.predictions,
+    momentum: p.momentum,
+    updatedAt: p.status.last_synced_at,
+  }
+}
+
+const mockPayload = (): ApiPayload => ({
+  standings: standingsMock as Standings,
+  matches: matchesMock as Match[],
+  goals: goalsMock as GoalStats,
+  discipline: disciplineMock as TeamDiscipline[],
+  players: playersMock as PlayerSeasonStats[],
+  profiles: profilesMock as TeamProfile[],
+  predictions: predictionsMock as Predictions,
+  momentum: momentumMock as TeamMomentum[],
+  status: statusMock as SyncStatus,
+})
+
 export async function fetchSnapshot(): Promise<LeagueSnapshot> {
   if (isMock) {
     await delay(250)
-    return {
-      standings: standingsMock as Standings,
-      matches: matchesMock as Match[],
-      upcoming: upcomingMock as Match[],
-      goals: goalsMock as GoalStats,
-      discipline: disciplineMock as TeamDiscipline[],
-      players: playersMock,
-      updatedAt: MOCK_UPDATED_AT,
-    }
+    // Mock fixtures are frozen in time: "upcoming" is relative to the export.
+    return toSnapshot(mockPayload(), new Date(statusMock.last_synced_at ?? Date.now()))
   }
 
-  const [standings, matches, goals, discipline, players, status] = await Promise.all([
-    request<Standings>(`/standings?${leagueQuery}`),
-    request<Match[]>(`/matches?${leagueQuery}`),
-    request<GoalStats>(`/goals?${leagueQuery}`),
-    request<TeamDiscipline[]>(`/discipline?${leagueQuery}`),
-    request<PlayerSeasonStats[]>(`/players?${leagueQuery}&min_participation=${MIN_PLAYER_PARTICIPATION}`),
-    fetchSyncStatus(),
-  ])
-  return {
-    standings,
-    matches,
-    upcoming: nextRoundFixtures(matches),
-    goals,
-    discipline,
-    players: players.map(toPlayerStat).filter((p): p is PlayerStat => p !== null),
-    updatedAt: status.last_synced_at,
-  }
+  const [standings, matches, goals, discipline, players, profiles, predictions, momentum, status] =
+    await Promise.all([
+      request<Standings>(`/standings?${leagueQuery}`),
+      request<Match[]>(`/matches?${leagueQuery}`),
+      request<GoalStats>(`/goals?${leagueQuery}`),
+      request<TeamDiscipline[]>(`/discipline?${leagueQuery}`),
+      request<PlayerSeasonStats[]>(`/players?${leagueQuery}`),
+      request<TeamProfile[]>(`/teams/profiles?${leagueQuery}`),
+      request<Predictions>(`/predictions?${leagueQuery}`),
+      request<TeamMomentum[]>(`/momentum?${leagueQuery}`),
+      fetchSyncStatus(),
+    ])
+  return toSnapshot(
+    { standings, matches, goals, discipline, players, profiles, predictions, momentum, status },
+    new Date(),
+  )
 }
 
 /** Database-only check on the backend — never reaches Sofascore. */
 export async function fetchSyncStatus(): Promise<SyncStatus> {
   if (isMock) {
     await delay(200)
-    return {
-      up_to_date: true,
-      overdue_matches: 0,
-      details_pending: 0,
-      last_synced_at: MOCK_UPDATED_AT,
-      last_match_date: "2026-10-11T23:00:00Z",
-      next_match_date: (upcomingMock as Match[])[0]?.match_date ?? null,
-    }
+    return statusMock as SyncStatus
   }
   return request<SyncStatus>(`/sync/status?${leagueQuery}`)
 }
@@ -162,3 +198,23 @@ export async function syncLatestMatches(force = false): Promise<SyncResult> {
     method: "POST",
   })
 }
+
+/** Thrown by on-demand detail fetches in demo mode, which has no per-team/match data. */
+export class DemoModeError extends Error {
+  constructor() {
+    super("Disponible solo con el backend conectado")
+  }
+}
+
+function detail<T>(path: string): Promise<T> {
+  return isMock ? Promise.reject(new DemoModeError()) : request<T>(path)
+}
+
+export const fetchTeamVisuals = (teamId: number) =>
+  detail<TeamVisuals>(`/teams/${teamId}/visuals?${leagueQuery}`)
+
+export const fetchMatchVisuals = (sourceId: string) =>
+  detail<MatchVisuals>(`/matches/${sourceId}/visuals`)
+
+export const fetchHeadToHead = (teamA: number, teamB: number) =>
+  detail<HeadToHead>(`/h2h?team_a=${teamA}&team_b=${teamB}`)

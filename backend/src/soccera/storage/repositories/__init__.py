@@ -4,6 +4,7 @@ from soccera.storage.repositories.match_event_repository import MatchEventReposi
 from soccera.storage.repositories.match_player_stat_repository import MatchPlayerStatRepository
 from soccera.storage.repositories.match_repository import MatchRepository
 from soccera.storage.repositories.match_statistic_repository import MatchStatisticRepository
+from soccera.storage.repositories.match_visuals_repository import MatchVisualsRepository
 from soccera.storage.repositories.player_repository import PlayerRepository
 from soccera.storage.repositories.prediction_repository import PredictionRepository
 from soccera.storage.repositories.season_repository import SeasonRepository
@@ -22,6 +23,7 @@ __all__ = [
     "MatchEventRepository",
     "MatchPlayerStatRepository",
     "MatchStatisticRepository",
+    "MatchVisualsRepository",
     "IngestionRunRepository",
     "PredictionRepository",
 ]

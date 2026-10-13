@@ -14,12 +14,14 @@ from soccera.ingestion.domain import DomainMatch
 from soccera.logging import get_logger
 from soccera.storage.models.match import Match
 from soccera.storage.models.match_event import MatchEvent
+from soccera.storage.models.match_visuals import HEATMAP_COLS, HEATMAP_ROWS, MatchShot
 from soccera.storage.repositories import (
     LeagueRepository,
     MatchEventRepository,
     MatchPlayerStatRepository,
     MatchRepository,
     MatchStatisticRepository,
+    MatchVisualsRepository,
     PlayerRepository,
     SeasonRepository,
     TeamPlayerRepository,
@@ -302,8 +304,64 @@ def sync_fixture_details(adapter: DataSourceAdapter, session: Session, match_sou
             continue
         stat_repo.upsert(match.id, team.id, stat.stat_type, stat.stat_value)
 
+    sync_fixture_visuals(adapter, session, match)
+
     match.details_synced_at = datetime.now(UTC)
     session.flush()
+
+
+def bin_heatmap(points: list[tuple[float, float]]) -> list[int]:
+    """0-100 (x, y) touches -> HEATMAP_ROWS x HEATMAP_COLS counts, row-major."""
+    grid = [0] * (HEATMAP_ROWS * HEATMAP_COLS)
+    for x, y in points:
+        col = min(int(x / 100 * HEATMAP_COLS), HEATMAP_COLS - 1)
+        row = min(int(y / 100 * HEATMAP_ROWS), HEATMAP_ROWS - 1)
+        grid[max(row, 0) * HEATMAP_COLS + max(col, 0)] += 1
+    return grid
+
+
+def sync_fixture_visuals(adapter: DataSourceAdapter, session: Session, match: Match) -> None:
+    """Shots, momentum curve and team heatmaps for one match (4 provider
+    calls on Sofascore). Players must already exist for shots to link to them."""
+    team_repo = TeamRepository(session)
+    player_repo = PlayerRepository(session)
+    visuals = MatchVisualsRepository(session)
+    team_ids = {
+        source_id: team.id
+        for source_id in {match.home_team.source_id, match.away_team.source_id}
+        if (team := team_repo.get_by_source(adapter.source_name, source_id))
+    }
+
+    shots = []
+    for shot in adapter.get_fixture_shots(match.source_id):
+        team_id = team_ids.get(shot.team_source_id)
+        if team_id is None:
+            continue
+        player = (
+            player_repo.get_by_source(adapter.source_name, shot.player_source_id)
+            if shot.player_source_id
+            else None
+        )
+        shots.append(
+            MatchShot(
+                match_id=match.id,
+                team_id=team_id,
+                player_id=player.id if player else None,
+                **shot.model_dump(exclude={"match_source_id", "team_source_id", "player_source_id"}),
+            )
+        )
+    visuals.replace_shots(match.id, shots)
+
+    momentum = adapter.get_fixture_momentum(match.source_id)
+    if momentum is not None:
+        visuals.upsert_momentum(match.id, [list(p) for p in momentum.points])
+
+    for heatmap in adapter.get_fixture_heatmaps(match.source_id):
+        team_id = team_ids.get(heatmap.team_source_id)
+        if team_id is not None:
+            visuals.upsert_heatmap(
+                match.id, team_id, bin_heatmap(heatmap.points), len(heatmap.points)
+            )
 
 
 # A match is over well within this long after kickoff (90' + half-time + stoppage).
