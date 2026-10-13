@@ -1,0 +1,126 @@
+{
+  "league_source_id": "11535",
+  "season_year": 2026,
+  "rows": [
+    {
+      "team_id": 3,
+      "team_name": "Deportivo Saprissa",
+      "played": 10,
+      "won": 7,
+      "drawn": 0,
+      "lost": 3,
+      "goals_for": 20,
+      "goals_against": 11,
+      "goal_diff": 9,
+      "points": 21
+    },
+    {
+      "team_id": 7,
+      "team_name": "Sporting FC",
+      "played": 10,
+      "won": 6,
+      "drawn": 2,
+      "lost": 2,
+      "goals_for": 19,
+      "goals_against": 9,
+      "goal_diff": 10,
+      "points": 20
+    },
+    {
+      "team_id": 5,
+      "team_name": "CS Cartaginés",
+      "played": 10,
+      "won": 6,
+      "drawn": 0,
+      "lost": 4,
+      "goals_for": 19,
+      "goals_against": 13,
+      "goal_diff": 6,
+      "points": 18
+    },
+    {
+      "team_id": 9,
+      "team_name": "San Carlos",
+      "played": 10,
+      "won": 6,
+      "drawn": 0,
+      "lost": 4,
+      "goals_for": 9,
+      "goals_against": 9,
+      "goal_diff": 0,
+      "points": 18
+    },
+    {
+      "team_id": 8,
+      "team_name": "LD Alajuelense",
+      "played": 10,
+      "won": 4,
+      "drawn": 3,
+      "lost": 3,
+      "goals_for": 16,
+      "goals_against": 11,
+      "goal_diff": 5,
+      "points": 15
+    },
+    {
+      "team_id": 6,
+      "team_name": "Inter San Carlos",
+      "played": 10,
+      "won": 4,
+      "drawn": 3,
+      "lost": 3,
+      "goals_for": 10,
+      "goals_against": 13,
+      "goal_diff": -3,
+      "points": 15
+    },
+    {
+      "team_id": 2,
+      "team_name": "Puntarenas FC",
+      "played": 10,
+      "won": 3,
+      "drawn": 3,
+      "lost": 4,
+      "goals_for": 9,
+      "goals_against": 14,
+      "goal_diff": -5,
+      "points": 12
+    },
+    {
+      "team_id": 4,
+      "team_name": "Municipal Pérez Zeledón",
+      "played": 10,
+      "won": 2,
+      "drawn": 3,
+      "lost": 5,
+      "goals_for": 8,
+      "goals_against": 15,
+      "goal_diff": -7,
+      "points": 9
+    },
+    {
+      "team_id": 1,
+      "team_name": "Herediano",
+      "played": 10,
+      "won": 2,
+      "drawn": 1,
+      "lost": 7,
+      "goals_for": 8,
+      "goals_against": 15,
+      "goal_diff": -7,
+      "points": 7
+    },
+    {
+      "team_id": 11,
+      "team_name": "CD Escorpiones Belen",
+      "played": 10,
+      "won": 2,
+      "drawn": 1,
+      "lost": 7,
+      "goals_for": 7,
+      "goals_against": 15,
+      "goal_diff": -8,
+      "points": 7
+    }
+  ]
+}

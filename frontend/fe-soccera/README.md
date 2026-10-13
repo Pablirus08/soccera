@@ -1,32 +1,46 @@
-# React + TypeScript + Vite
+# SoccerA — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite + TypeScript, con Tailwind CSS v4 y componentes de [shadcn/ui](https://ui.shadcn.com).
 
-Currently, two official plugins are available:
+## Correr en local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+cd frontend/fe-soccera
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+El puerto 3000 coincide con el CORS permitido por el backend (`backend/src/soccera/api/main.py`).
+
+## Datos: modo demo vs. backend
+
+Sin configuración, la app usa el snapshot de `src/mocks/` (tabla y partidos reales del
+Apertura 2026 exportados de la base; jugadores inventados). Para usar la API FastAPI:
+
+```powershell
+copy .env.example .env.local   # y descomentar VITE_API_URL
+```
+
+Toda la comunicación con el backend está en `src/lib/api.ts`. Pendientes del backend:
+
+| Necesidad del frontend | Estado |
+|---|---|
+| Tabla, partidos, goles, disciplina | ✅ `/api/standings`, `/api/matches`, `/api/goals`, `/api/discipline` |
+| Próxima jornada | ❌ el adapter solo sincroniza partidos pasados (`events/last`); falta `events/next` |
+| Botón "Actualizar partidos" | ❌ falta `POST /api/sync` (backfill + detalles de la temporada actual) |
+| Mejores jugadores | ❌ no hay datos de jugadores todavía |
+
+## Estructura
+
+```
+src/
+├── pages/          # Inicio, Equipos, detalle de equipo, Análisis
+├── components/     # piezas propias (tabla, próxima jornada, jugadores…)
+│   └── ui/         # componentes shadcn (generados: npx shadcn@latest add <nombre>)
+├── lib/
+│   ├── api.ts          # capa de datos (mock o backend)
+│   ├── league-data.tsx # estado global + acción de sincronizar
+│   ├── football.ts     # cálculos: forma, puntos por jornada, local/visita…
+│   └── types.ts        # tipos = esquemas Pydantic del backend
+└── mocks/          # snapshot JSON + jugadores de ejemplo
+```
