@@ -9,6 +9,19 @@ export const POSITION_LABELS: Record<Position, string> = {
   FWD: "Delanteros",
 }
 
+export const POSITION_SINGULAR: Record<Position, string> = {
+  GK: "Portero",
+  DEF: "Defensa",
+  MID: "Mediocampista",
+  FWD: "Delantero",
+}
+
+/** "José Gabriel Carvajal Solano" → "JS" (first + last name). */
+export const playerInitials = (name: string) => {
+  const words = name.split(/\s+/).filter(Boolean)
+  return ((words[0]?.[0] ?? "") + (words.length > 1 ? words.at(-1)![0] : "")).toUpperCase()
+}
+
 export const POSITION_SHORT: Record<Position, string> = {
   GK: "POR",
   DEF: "DEF",
@@ -38,6 +51,26 @@ export const teamSlug = (team: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
 
+// Crests in public/teams/<slug>.png (192px, resized from /clubes originals).
+const TEAMS_WITH_LOGO = new Set([
+  "deportivo-saprissa",
+  "sporting-fc",
+  "cs-cartagines",
+  "san-carlos",
+  "ld-alajuelense",
+  "inter-san-carlos",
+  "puntarenas-fc",
+  "municipal-perez-zeledon",
+  "herediano",
+  "cd-escorpiones-belen",
+])
+
+/** Crest URL, or undefined for teams without one (they fall back to initials). */
+export const teamLogoUrl = (team: string) => {
+  const slug = teamSlug(team)
+  return TEAMS_WITH_LOGO.has(slug) ? `/teams/${slug}.png` : undefined
+}
+
 /** "Pérez Zeledón" → "PZ", "Saprissa" → "Sa" (two letters so one-word names don't collide). */
 export const teamInitials = (team: string) => {
   const words = shortName(team).split(/\s+/)
@@ -65,6 +98,15 @@ export function recentForm(team: string, matches: Match[], n = 5): Result[] {
     .map((m) => resultFor(team, m))
     .filter((r): r is Result => r !== null)
     .slice(-n)
+}
+
+/** Scheduled fixtures of the next round: the round of the earliest upcoming match. */
+export function nextRoundFixtures(matches: Match[], now = new Date()) {
+  const upcoming = matches
+    .filter((m) => m.status === "SCHEDULED" && new Date(m.match_date) > now)
+    .sort(byDate)
+  const round = upcoming[0]?.round
+  return round ? upcoming.filter((m) => m.round === round) : []
 }
 
 export function lastPlayedRound(matches: Match[]) {

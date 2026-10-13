@@ -13,7 +13,7 @@ import { FormPills } from "@/components/form-pills"
 import { MockBadge } from "@/components/mock-badge"
 import { PageHeader } from "@/components/page-header"
 import { StatTile } from "@/components/stat-tile"
-import { TeamBadge } from "@/components/team-badge"
+import { TeamLogo } from "@/components/team-logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { isMock } from "@/lib/api"
 import {
   formatMatchDay,
   formatMatchTime,
@@ -33,7 +34,8 @@ import {
   goalsPerMatch,
   homeAwaySplit,
   isPlayed,
-  POSITION_LABELS,
+  playerInitials,
+  POSITION_SINGULAR,
   pointsProgression,
   recentForm,
   resultFor,
@@ -73,7 +75,10 @@ export function TeamDetailPage() {
   const played = teamMatches(team, matches).filter(isPlayed).reverse()
   const next = upcoming.find((m) => m.home_team === team || m.away_team === team)
   const split = homeAwaySplit(team, matches)
-  const squad = players.filter((p) => p.team_name === team).sort((a, b) => b.rating - a.rating)
+  const squad = players
+    .filter((p) => p.team_name === team)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 6)
   const perMatch = (n: number) => (row.played ? (n / row.played).toFixed(2) : "–")
 
   return (
@@ -85,7 +90,12 @@ export function TeamDetailPage() {
           </Link>
         </Button>
         <PageHeader
-          title={<TeamBadge team={team} size="lg" link={false} />}
+          title={
+            <span className="flex items-center gap-3">
+              <TeamLogo team={team} className="size-14" />
+              {team}
+            </span>
+          }
           description={`${index + 1}.º lugar · ${row.points} puntos en ${row.played} partidos`}
         >
           <FormPills form={recentForm(team, matches)} />
@@ -231,9 +241,9 @@ export function TeamDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Jugadores destacados</CardTitle>
-          <CardDescription>Mejor calificación del plantel</CardDescription>
+          <CardDescription>Nivel ajustado por partidos jugados</CardDescription>
           <CardAction>
-            <MockBadge />
+            {isMock && <MockBadge />}
           </CardAction>
         </CardHeader>
         <CardContent>
@@ -242,15 +252,15 @@ export function TeamDetailPage() {
               {squad.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 rounded-lg border p-3">
                   <Avatar>
-                    <AvatarFallback className="text-xs">
-                      {p.name.split(" ").map((w) => w[0]).join("")}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-xs">{playerInitials(p.name)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{POSITION_LABELS[p.position]}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {POSITION_SINGULAR[p.position]} · {p.matches} PJ · {p.minutes}&#8242;
+                    </p>
                   </div>
-                  <Badge>{p.rating.toFixed(1)}</Badge>
+                  <Badge title={`Promedio simple ${p.avgRating.toFixed(2)}`}>{p.rating.toFixed(2)}</Badge>
                 </li>
               ))}
             </ul>

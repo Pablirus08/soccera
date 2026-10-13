@@ -1,7 +1,7 @@
 import { Link } from "react-router"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { shortName, teamInitials, teamSlug } from "@/lib/football"
+import { TeamLogo } from "@/components/team-logo"
+import { shortName, teamSlug } from "@/lib/football"
 import { cn } from "@/lib/utils"
 
 type TeamBadgeProps = {
@@ -12,13 +12,11 @@ type TeamBadgeProps = {
   className?: string
 }
 
-/** Team crest placeholder (initials) + name. Swap the fallback for real crests later. */
+/** Team crest + name, optionally linking to the team page. */
 export function TeamBadge({ team, size = "sm", short = false, link = true, className }: TeamBadgeProps) {
   const content = (
     <>
-      <Avatar size={size}>
-        <AvatarFallback className="text-[0.65rem] font-semibold">{teamInitials(team)}</AvatarFallback>
-      </Avatar>
+      <TeamLogo team={team} size={size} />
       <span className="truncate">{short ? shortName(team) : team}</span>
     </>
   )

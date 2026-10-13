@@ -21,14 +21,27 @@ Apertura 2026 exportados de la base; jugadores inventados). Para usar la API Fas
 copy .env.example .env.local   # y descomentar VITE_API_URL
 ```
 
-Toda la comunicación con el backend está en `src/lib/api.ts`. Pendientes del backend:
+Toda la comunicación con el backend está en `src/lib/api.ts`:
 
-| Necesidad del frontend | Estado |
+| Sección | Endpoint |
 |---|---|
-| Tabla, partidos, goles, disciplina | ✅ `/api/standings`, `/api/matches`, `/api/goals`, `/api/discipline` |
-| Próxima jornada | ❌ el adapter solo sincroniza partidos pasados (`events/last`); falta `events/next` |
-| Botón "Actualizar partidos" | ❌ falta `POST /api/sync` (backfill + detalles de la temporada actual) |
-| Mejores jugadores | ❌ no hay datos de jugadores todavía |
+| Tabla, partidos (incl. próxima jornada), goles, disciplina | `/api/standings`, `/api/matches`, `/api/goals`, `/api/discipline` |
+| Mejores jugadores | `/api/players?min_minutes=270` |
+| Botón "Actualizar partidos" | `GET /api/sync/status` y, solo si algo está desactualizado, `POST /api/sync` |
+
+El botón primero consulta `/api/sync/status`, que solo lee la base de datos. Si todo
+está al día muestra "Todo está actualizado" sin llamar a Sofascore (con opción
+"Forzar"); si no, `POST /api/sync` trae el calendario y el detalle de los partidos
+pendientes (máximo 15 por llamada).
+
+Para levantar ambos:
+
+```powershell
+# terminal 1
+cd backend; .venv\Scripts\python.exe scripts\run_api.py
+# terminal 2
+cd frontend\fe-soccera; npm run dev
+```
 
 ## Estructura
 

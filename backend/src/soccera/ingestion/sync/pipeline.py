@@ -5,21 +5,24 @@ on the read side, and on repositories on the write side — no provider
 specifics leak in here.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from soccera.ingestion.base import DataSourceAdapter
 from soccera.ingestion.domain import DomainMatch
 from soccera.logging import get_logger
+from soccera.storage.models.match import Match
 from soccera.storage.models.match_event import MatchEvent
 from soccera.storage.repositories import (
     LeagueRepository,
     MatchEventRepository,
+    MatchPlayerStatRepository,
     MatchRepository,
     MatchStatisticRepository,
     PlayerRepository,
     SeasonRepository,
+    TeamPlayerRepository,
     TeamRepository,
     VenueRepository,
 )
@@ -197,8 +200,58 @@ def _upsert_fixture(
     return True
 
 
+def sync_fixture_player_stats(adapter: DataSourceAdapter, session: Session, match: Match) -> int:
+    """
+    Upserts every player in the match's lineups (creating Player and the
+    season's TeamPlayer roster row on first sight) and, for those who
+    actually played, their stat line. Returns the number of stat lines.
+    """
+    team_repo = TeamRepository(session)
+    player_repo = PlayerRepository(session)
+    roster_repo = TeamPlayerRepository(session)
+    stat_repo = MatchPlayerStatRepository(session)
+
+    count = 0
+    for line in adapter.get_fixture_player_stats(match.source_id):
+        team = team_repo.get_by_source(adapter.source_name, line.team_source_id)
+        if team is None:
+            continue
+
+        # Only overwrite fields the provider actually sent, so a sparse
+        # payload never blanks out data from an earlier, richer one.
+        player_fields = line.player.model_dump(
+            exclude={"source_id", "shirt_number"}, exclude_none=True
+        )
+        player = player_repo.upsert(adapter.source_name, line.player.source_id, **player_fields)
+        roster_repo.upsert(
+            team.id,
+            player.id,
+            match.season_id,
+            shirt_number=line.shirt_number,
+            position=line.position,
+        )
+
+        # Unused substitutes appear in the lineup but have no stat line.
+        if not line.minutes_played:
+            continue
+        stat_repo.upsert(
+            match.id,
+            player.id,
+            team_id=team.id,
+            is_starter=line.is_starter,
+            shirt_number=line.shirt_number,
+            position=line.position,
+            minutes_played=line.minutes_played,
+            rating=line.rating,
+            stats=line.stats,
+        )
+        count += 1
+    return count
+
+
 def sync_fixture_details(adapter: DataSourceAdapter, session: Session, match_source_id: str) -> None:
-    """Syncs events and statistics for a single match — called per live match each poll."""
+    """Syncs lineups/player stats, events and team statistics for a single
+    match — called per live match each poll and by the detail backfill."""
     match_repo = MatchRepository(session)
     team_repo = TeamRepository(session)
     player_repo = PlayerRepository(session)
@@ -209,6 +262,10 @@ def sync_fixture_details(adapter: DataSourceAdapter, session: Session, match_sou
     if match is None:
         logger.warning("sync.fixture_details_skipped_unknown_match", match_source_id=match_source_id)
         return
+
+    # Players first: events below reference them by source id, and those
+    # lookups only resolve once the lineup has created the Player rows.
+    sync_fixture_player_stats(adapter, session, match)
 
     events: list[MatchEvent] = []
     for event in adapter.get_fixture_events(match_source_id):
@@ -244,3 +301,20 @@ def sync_fixture_details(adapter: DataSourceAdapter, session: Session, match_sou
         if team is None:
             continue
         stat_repo.upsert(match.id, team.id, stat.stat_type, stat.stat_value)
+
+    match.details_synced_at = datetime.now(UTC)
+    session.flush()
+
+
+# A match is over well within this long after kickoff (90' + half-time + stoppage).
+MATCH_DURATION = timedelta(hours=2, minutes=15)
+
+
+def needs_details(match: Match) -> bool:
+    """True for a finished match whose detail was never fetched, or was
+    fetched mid-game (before the final whistle) and is therefore stale."""
+    if match.status != "FINISHED":
+        return False
+    if match.details_synced_at is None:
+        return True
+    return match.details_synced_at < match.match_date + MATCH_DURATION

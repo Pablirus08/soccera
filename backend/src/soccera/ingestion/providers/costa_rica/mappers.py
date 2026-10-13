@@ -11,11 +11,13 @@ from soccera.ingestion.domain import (
     DomainMatchEvent,
     DomainMatchStatistic,
     DomainPlayer,
+    DomainPlayerMatchStat,
     DomainTeam,
 )
 from soccera.ingestion.providers.costa_rica.schemas import (
     RawEventEntry,
     RawIncidentEntry,
+    RawLineupPlayer,
     RawSquadPlayer,
     RawStatisticPeriod,
     RawTeamRef,
@@ -38,6 +40,13 @@ EVENT_TYPE_MAP: dict[str, str] = {
     "goal": "GOAL",
     "card": "CARD",
     "substitution": "SUBST",
+}
+
+POSITION_MAP: dict[str, str] = {
+    "G": "Goalkeeper",
+    "D": "Defender",
+    "M": "Midfielder",
+    "F": "Attacker",
 }
 
 
@@ -152,6 +161,13 @@ def map_fixture_statistics(
     return results
 
 
+def map_position(code: str | None) -> str | None:
+    """Sofascore's one-letter codes -> the canonical names players.position uses."""
+    if not code:
+        return None
+    return POSITION_MAP.get(code, code)
+
+
 def map_player(raw: RawSquadPlayer) -> DomainPlayer:
     birth_date = None
     if raw.dateOfBirthTimestamp:
@@ -160,9 +176,36 @@ def map_player(raw: RawSquadPlayer) -> DomainPlayer:
     return DomainPlayer(
         source_id=str(raw.id),
         name=raw.name,
-        first_name=raw.firstName,
-        last_name=raw.lastName,
+        # Sofascore sends "" rather than null for unknown first/last names.
+        first_name=raw.firstName or None,
+        last_name=raw.lastName or None,
         birth_date=birth_date,
-        position=raw.position,
+        nationality=raw.country.name if raw.country else None,
+        position=map_position(raw.position),
         shirt_number=shirt_number,
+    )
+
+
+def map_lineup_player(
+    raw: RawLineupPlayer, match_source_id: str, team_source_id: str
+) -> DomainPlayerMatchStat:
+    # Keep only flat numeric stats; drop nested objects (ratingVersions,
+    # statisticsType). bool is an int subclass, so exclude it explicitly.
+    stats = {
+        key: float(value)
+        for key, value in raw.statistics.items()
+        if isinstance(value, int | float) and not isinstance(value, bool)
+    }
+    minutes = stats.pop("minutesPlayed", None)
+    rating = stats.pop("rating", None)
+    return DomainPlayerMatchStat(
+        match_source_id=match_source_id,
+        team_source_id=team_source_id,
+        player=map_player(raw.player),
+        is_starter=not raw.substitute,
+        shirt_number=raw.shirtNumber,
+        position=map_position(raw.position or raw.player.position),
+        minutes_played=int(minutes) if minutes is not None else None,
+        rating=rating,
+        stats=stats,
     )

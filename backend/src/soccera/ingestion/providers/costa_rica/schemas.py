@@ -74,6 +74,10 @@ class RawStatisticPeriod(BaseModel):
     groups: list[RawStatisticGroup] = []
 
 
+class RawCountry(BaseModel):
+    name: str | None = None
+
+
 class RawSquadPlayer(BaseModel):
     id: int
     name: str
@@ -82,3 +86,21 @@ class RawSquadPlayer(BaseModel):
     position: str | None = None
     jerseyNumber: str | None = None
     dateOfBirthTimestamp: int | None = None
+    country: RawCountry | None = None
+
+
+class RawLineupPlayer(BaseModel):
+    """An entry of /event/{id}/lineups -> home|away.players. `statistics` is
+    absent for unused substitutes and otherwise mixes numbers with a few
+    nested objects (ratingVersions, statisticsType) that the mapper drops."""
+
+    player: RawSquadPlayer
+    teamId: int | None = None
+    shirtNumber: int | None = None
+    position: str | None = None
+    substitute: bool = False
+    statistics: dict[str, object] = {}
+
+
+class RawLineupSide(BaseModel):
+    players: list[RawLineupPlayer] = []

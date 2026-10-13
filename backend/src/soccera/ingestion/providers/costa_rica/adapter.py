@@ -1,3 +1,4 @@
+import time
 from datetime import date
 
 from soccera.ingestion.base import DataSourceAdapter
@@ -8,6 +9,7 @@ from soccera.ingestion.domain import (
     DomainMatchEvent,
     DomainMatchStatistic,
     DomainPlayer,
+    DomainPlayerMatchStat,
     DomainSeason,
     DomainTeam,
 )
@@ -16,6 +18,7 @@ from soccera.ingestion.providers.costa_rica.mappers import (
     map_fixture,
     map_fixture_event,
     map_fixture_statistics,
+    map_lineup_player,
     map_player,
     map_team,
     season_year_from_sofascore_year,
@@ -23,6 +26,7 @@ from soccera.ingestion.providers.costa_rica.mappers import (
 from soccera.ingestion.providers.costa_rica.schemas import (
     RawEventEntry,
     RawIncidentEntry,
+    RawLineupSide,
     RawSquadPlayer,
     RawStatisticPeriod,
     RawTeamRef,
@@ -30,6 +34,11 @@ from soccera.ingestion.providers.costa_rica.schemas import (
 from soccera.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Season lists and fixture-list pages are requested several times within one
+# backfill (teams, then fixtures). Short enough that live polling (60s) still
+# sees fresh pages on every poll.
+LIST_CACHE_SECONDS = 30.0
 
 # Sofascore tracks Costa Rica's Primera Division as two separate
 # tournaments (Apertura/Clausura), each with its own unique-tournament id.
@@ -54,6 +63,8 @@ class SofascoreAdapter(DataSourceAdapter):
 
     def __init__(self, client: SofascoreClient | None = None):
         self._client = client or SofascoreClient()
+        self._team_ids: dict[str, tuple[str, str]] = {}
+        self._list_cache: dict[str, tuple[float, dict]] = {}
 
     @property
     def source_name(self) -> str:
@@ -72,8 +83,17 @@ class SofascoreAdapter(DataSourceAdapter):
                 return {}
             raise
 
+    def _get_list(self, path: str) -> dict:
+        """GET for season/fixture-list endpoints, memoized for LIST_CACHE_SECONDS."""
+        hit = self._list_cache.get(path)
+        if hit and time.monotonic() - hit[0] < LIST_CACHE_SECONDS:
+            return hit[1]
+        data = self._client.get(path)
+        self._list_cache[path] = (time.monotonic(), data)
+        return data
+
     def _season_id_for_year(self, league_source_id: str, season_year: int) -> int:
-        seasons = self._client.get(f"/unique-tournament/{league_source_id}/seasons/")
+        seasons = self._get_list(f"/unique-tournament/{league_source_id}/seasons")
         for entry in seasons.get("seasons", []):
             if season_year_from_sofascore_year(entry["year"]) == season_year:
                 return entry["id"]
@@ -82,22 +102,31 @@ class SofascoreAdapter(DataSourceAdapter):
         )
 
     def _iter_events(self, league_source_id: str, season_id: int) -> list[dict]:
-        events: list[dict] = []
-        page = 0
-        while True:
-            try:
-                data = self._client.get(
-                    f"/unique-tournament/{league_source_id}/season/{season_id}/events/last/{page}"
+        """Every event of the season: `last` pages hold played/past fixtures,
+        `next` pages the upcoming ones. Deduplicated by id, since a match
+        about to kick off can briefly show up in both."""
+        events: dict[int, dict] = {}
+        for direction in ("last", "next"):
+            page = 0
+            while True:
+                path = (
+                    f"/unique-tournament/{league_source_id}/season/{season_id}"
+                    f"/events/{direction}/{page}"
                 )
-            except SofascoreError as exc:
-                if exc.code == 404:  # past the last page
+                try:
+                    data = self._get_list(path)
+                except SofascoreError as exc:
+                    if exc.code == 404:  # past the last page
+                        break
+                    raise
+                if not data.get("events"):
                     break
-                raise
-            if "events" not in data:
-                break
-            events.extend(data["events"])
-            page += 1
-        return events
+                for ev in data["events"]:
+                    events[ev["id"]] = ev
+                if not data.get("hasNextPage", True):
+                    break
+                page += 1
+        return list(events.values())
 
     def get_leagues(self, country: str | None = None) -> list[DomainLeagueWithSeasons]:
         result = []
@@ -115,7 +144,7 @@ class SofascoreAdapter(DataSourceAdapter):
         return result
 
     def get_seasons(self, league_source_id: str) -> list[DomainSeason]:
-        seasons_raw = self._client.get(f"/unique-tournament/{league_source_id}/seasons/")["seasons"]
+        seasons_raw = self._get_list(f"/unique-tournament/{league_source_id}/seasons")["seasons"]
         return [
             DomainSeason(
                 league_source_id=league_source_id,
@@ -167,7 +196,7 @@ class SofascoreAdapter(DataSourceAdapter):
     def get_live_fixtures(self) -> list[DomainMatch]:
         live: list[DomainMatch] = []
         for league_source_id in LEAGUES:
-            seasons_raw = self._client.get(f"/unique-tournament/{league_source_id}/seasons/")[
+            seasons_raw = self._get_list(f"/unique-tournament/{league_source_id}/seasons")[
                 "seasons"
             ]
             if not seasons_raw:
@@ -180,10 +209,20 @@ class SofascoreAdapter(DataSourceAdapter):
                     live.append(map_fixture(raw, league_source_id, season_year))
         return live
 
+    def _match_team_ids(self, match_source_id: str) -> tuple[str, str]:
+        """(home, away) team ids. Cached because events and statistics both
+        need them and a match's teams never change — saves one call per match."""
+        if match_source_id not in self._team_ids:
+            event = self._client.get(f"/event/{match_source_id}")["event"]
+            self._team_ids[match_source_id] = (
+                str(event["homeTeam"]["id"]),
+                str(event["awayTeam"]["id"]),
+            )
+        return self._team_ids[match_source_id]
+
     def get_fixture_events(self, match_source_id: str) -> list[DomainMatchEvent]:
         incidents = self._get_or_empty(f"/event/{match_source_id}/incidents")
-        event = self._client.get(f"/event/{match_source_id}")["event"]
-        home_id, away_id = str(event["homeTeam"]["id"]), str(event["awayTeam"]["id"])
+        home_id, away_id = self._match_team_ids(match_source_id)
 
         results = []
         for raw in incidents.get("incidents", []):
@@ -195,8 +234,20 @@ class SofascoreAdapter(DataSourceAdapter):
 
     def get_fixture_statistics(self, match_source_id: str) -> list[DomainMatchStatistic]:
         stats = self._get_or_empty(f"/event/{match_source_id}/statistics")
-        event = self._client.get(f"/event/{match_source_id}")["event"]
-        home_id, away_id = str(event["homeTeam"]["id"]), str(event["awayTeam"]["id"])
+        home_id, away_id = self._match_team_ids(match_source_id)
 
         periods = [RawStatisticPeriod.model_validate(p) for p in stats.get("statistics", [])]
         return map_fixture_statistics(periods, match_source_id, home_id, away_id)
+
+    def get_fixture_player_stats(self, match_source_id: str) -> list[DomainPlayerMatchStat]:
+        lineups = self._get_or_empty(f"/event/{match_source_id}/lineups")
+        if not lineups:
+            return []
+        home_id, away_id = self._match_team_ids(match_source_id)
+
+        results = []
+        for side_key, team_id in (("home", home_id), ("away", away_id)):
+            side = RawLineupSide.model_validate(lineups.get(side_key, {}))
+            for raw in side.players:
+                results.append(map_lineup_player(raw, match_source_id, team_id))
+        return results

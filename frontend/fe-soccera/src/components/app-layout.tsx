@@ -21,7 +21,11 @@ export function AppLayout() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
           <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-            {data ? `Actualizado ${formatDateTime(data.updatedAt)}` : "Cargando…"}
+            {data
+              ? data.updatedAt
+                ? `Actualizado ${formatDateTime(data.updatedAt)}`
+                : "Sin sincronizar"
+              : "Cargando…"}
           </span>
           <div className="ml-auto flex items-center gap-1">
             <ThemeToggle />

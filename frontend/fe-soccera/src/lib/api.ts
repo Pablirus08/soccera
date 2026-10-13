@@ -4,12 +4,17 @@ import matchesMock from "@/mocks/matches.json"
 import { playersMock } from "@/mocks/players"
 import standingsMock from "@/mocks/standings.json"
 import upcomingMock from "@/mocks/upcoming.json"
+import { nextRoundFixtures } from "@/lib/football"
 import type {
   GoalStats,
   LeagueSnapshot,
   Match,
+  PlayerSeasonStats,
+  PlayerStat,
+  Position,
   Standings,
   SyncResult,
+  SyncStatus,
   TeamDiscipline,
 } from "@/lib/types"
 
@@ -26,14 +31,73 @@ export const LEAGUE = {
   tournament: "Apertura 2026",
 }
 
+// Players who played less than this share of their team's minutes are left out of rankings.
+export const MIN_PLAYER_PARTICIPATION = 0.3
+
 const MOCK_UPDATED_AT = "2026-10-13T18:15:00Z"
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const leagueQuery = `league=${LEAGUE.sourceId}&season=${LEAGUE.season}`
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}/api${path}`, init)
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText} — ${path}`)
+  if (!response.ok) {
+    // FastAPI errors carry a human-readable {"detail": "..."}.
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail ?? `${response.status} ${response.statusText}`)
+  }
   return response.json() as Promise<T>
+}
+
+const POSITIONS: Record<NonNullable<PlayerSeasonStats["position"]>, Position> = {
+  Goalkeeper: "GK",
+  Defender: "DEF",
+  Midfielder: "MID",
+  Attacker: "FWD",
+}
+
+/** The two headline stats shown next to each player, per position. */
+function headlineStats(p: PlayerSeasonStats, position: Position): PlayerStat["stats"] {
+  const t = p.totals
+  switch (position) {
+    case "GK":
+      return [
+        { label: "Vallas invictas", value: p.clean_sheets },
+        { label: "Atajadas", value: t.saves ?? 0 },
+      ]
+    case "DEF":
+      return [
+        { label: "Despejes", value: t.totalClearance ?? 0 },
+        { label: "Intercepciones", value: t.interceptionWon ?? 0 },
+      ]
+    case "MID":
+      return [
+        { label: "Asistencias", value: t.goalAssist ?? 0 },
+        { label: "Pases clave", value: t.keyPass ?? 0 },
+      ]
+    case "FWD":
+      return [
+        { label: "Goles", value: t.goals ?? 0 },
+        { label: "Tiros al arco", value: t.onTargetScoringAttempt ?? 0 },
+      ]
+  }
+}
+
+function toPlayerStat(p: PlayerSeasonStats): PlayerStat | null {
+  const position = p.position ? POSITIONS[p.position] : undefined
+  if (!position || p.rating === null || p.adjusted_rating === null) return null
+  return {
+    id: String(p.player_id),
+    name: p.name,
+    team_name: p.team_name,
+    position,
+    rating: p.adjusted_rating,
+    avgRating: p.rating,
+    matches: p.matches,
+    minutes: p.minutes,
+    stats: headlineStats(p, position),
+  }
 }
 
 export async function fetchSnapshot(): Promise<LeagueSnapshot> {
@@ -50,41 +114,51 @@ export async function fetchSnapshot(): Promise<LeagueSnapshot> {
     }
   }
 
-  const q = `?league=${LEAGUE.sourceId}&season=${LEAGUE.season}`
-  const [standings, matches, goals, discipline] = await Promise.all([
-    request<Standings>(`/standings${q}`),
-    request<Match[]>(`/matches${q}`),
-    request<GoalStats>(`/goals${q}`),
-    request<TeamDiscipline[]>(`/discipline${q}`),
+  const [standings, matches, goals, discipline, players, status] = await Promise.all([
+    request<Standings>(`/standings?${leagueQuery}`),
+    request<Match[]>(`/matches?${leagueQuery}`),
+    request<GoalStats>(`/goals?${leagueQuery}`),
+    request<TeamDiscipline[]>(`/discipline?${leagueQuery}`),
+    request<PlayerSeasonStats[]>(`/players?${leagueQuery}&min_participation=${MIN_PLAYER_PARTICIPATION}`),
+    fetchSyncStatus(),
   ])
   return {
     standings,
     matches,
+    upcoming: nextRoundFixtures(matches),
     goals,
     discipline,
-    // TODO(backend): the adapter only syncs past events (events/last); add
-    // events/next so upcoming fixtures come from /matches too.
-    upcoming: upcomingMock as Match[],
-    // TODO(backend): no player data yet.
-    players: playersMock,
-    updatedAt: new Date().toISOString(),
+    players: players.map(toPlayerStat).filter((p): p is PlayerStat => p !== null),
+    updatedAt: status.last_synced_at,
   }
 }
 
+/** Database-only check on the backend — never reaches Sofascore. */
+export async function fetchSyncStatus(): Promise<SyncStatus> {
+  if (isMock) {
+    await delay(200)
+    return {
+      up_to_date: true,
+      overdue_matches: 0,
+      details_pending: 0,
+      last_synced_at: MOCK_UPDATED_AT,
+      last_match_date: "2026-10-11T23:00:00Z",
+      next_match_date: (upcomingMock as Match[])[0]?.match_date ?? null,
+    }
+  }
+  return request<SyncStatus>(`/sync/status?${leagueQuery}`)
+}
+
 /**
- * "Actualizar partidos": asks the backend to pull the latest matches from
- * Sofascore (run_backfill_sofascore + sync_match_details for the current
- * season). TODO(backend): expose this as POST /api/sync.
+ * Pulls the latest fixtures and match detail from Sofascore through the
+ * backend. `force` skips the backend's own "already up to date" short-circuit.
  */
-export async function syncLatestMatches(): Promise<SyncResult> {
+export async function syncLatestMatches(force = false): Promise<SyncResult> {
   if (isMock) {
     await delay(1500)
-    const lastMatchDate = (matchesMock as Match[])
-      .filter((m) => m.status === "FINISHED")
-      .reduce<string | null>((max, m) => (max && max > m.match_date ? max : m.match_date), null)
-    return { synced: 0, lastMatchDate }
+    return { fixtures_synced: 0, details_synced: 0, status: await fetchSyncStatus() }
   }
-  return request<SyncResult>(`/sync?league=${LEAGUE.sourceId}&season=${LEAGUE.season}`, {
+  return request<SyncResult>(`/sync?${leagueQuery}${force ? "&force=true" : ""}`, {
     method: "POST",
   })
 }

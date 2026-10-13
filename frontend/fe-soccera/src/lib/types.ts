@@ -52,7 +52,40 @@ export type TeamDiscipline = {
   total_cards: number
 }
 
-// Not served by the backend yet — players come from mocks/players.ts.
+/** GET /api/players — season aggregates per player. */
+export type PlayerSeasonStats = {
+  player_id: number
+  name: string
+  team_name: string
+  position: "Goalkeeper" | "Defender" | "Midfielder" | "Attacker" | null
+  matches: number
+  starts: number
+  minutes: number
+  rating: number | null
+  adjusted_rating: number | null
+  participation: number
+  clean_sheets: number
+  totals: Record<string, number>
+}
+
+/** GET /api/sync/status — database-only freshness check. */
+export type SyncStatus = {
+  up_to_date: boolean
+  overdue_matches: number
+  details_pending: number
+  last_synced_at: string | null
+  last_match_date: string | null
+  next_match_date: string | null
+}
+
+/** POST /api/sync */
+export type SyncResult = {
+  fixtures_synced: number
+  details_synced: number
+  status: SyncStatus
+}
+
+// Frontend shape for the "best players" UI (mapped from PlayerSeasonStats).
 export type Position = "GK" | "DEF" | "MID" | "FWD"
 
 export type PlayerStat = {
@@ -60,8 +93,12 @@ export type PlayerStat = {
   name: string
   team_name: string
   position: Position
+  /** Adjusted level (ranking key): minutes-weighted, shrunk toward the position mean. */
   rating: number
+  /** Plain mean of match ratings. */
+  avgRating: number
   matches: number
+  minutes: number
   stats: { label: string; value: number }[]
 }
 
@@ -72,10 +109,5 @@ export type LeagueSnapshot = {
   goals: GoalStats
   discipline: TeamDiscipline[]
   players: PlayerStat[]
-  updatedAt: string
-}
-
-export type SyncResult = {
-  synced: number
-  lastMatchDate: string | null
+  updatedAt: string | null
 }

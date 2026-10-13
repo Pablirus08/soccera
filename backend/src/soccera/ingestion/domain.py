@@ -85,6 +85,22 @@ class DomainMatchStatistic(BaseModel):
     stat_value: float | None = None
 
 
+class DomainPlayerMatchStat(BaseModel):
+    """One player's appearance in one match: lineup role plus their stat line.
+    `stats` holds every numeric stat the provider reports (passes, saves,
+    expected goals, ...) keyed by the provider's stat name."""
+
+    match_source_id: str
+    team_source_id: str
+    player: DomainPlayer
+    is_starter: bool
+    shirt_number: int | None = None
+    position: str | None = None
+    minutes_played: int | None = None
+    rating: float | None = None
+    stats: dict[str, float] = {}
+
+
 class DomainMatchEvent(BaseModel):
     match_source_id: str
     team_source_id: str

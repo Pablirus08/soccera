@@ -1,7 +1,7 @@
 import { ChartColumnIcon, HouseIcon, ShieldIcon, TrophyIcon } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { TeamLogo } from "@/components/team-logo"
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { isMock, LEAGUE } from "@/lib/api"
-import { shortName, teamInitials, teamSlug } from "@/lib/football"
+import { shortName, teamSlug } from "@/lib/football"
 import { useLeagueData } from "@/lib/league-data"
 
 const NAV = [
@@ -95,11 +95,7 @@ export function AppSidebar() {
                       <SidebarMenuItem key={team}>
                         <SidebarMenuButton asChild tooltip={team} isActive={pathname === to}>
                           <Link to={to}>
-                            <Avatar size="sm">
-                              <AvatarFallback className="text-[0.55rem] font-semibold">
-                                {teamInitials(team)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <TeamLogo team={team} size="sm" />
                             <span>{shortName(team)}</span>
                           </Link>
                         </SidebarMenuButton>

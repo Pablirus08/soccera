@@ -123,3 +123,36 @@ class MatchReportOut(BaseModel):
     stat_comparison: list[StatComparisonOut]
     home_insight: TeamInsightOut
     away_insight: TeamInsightOut
+
+
+class PlayerSeasonStatsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    player_id: int
+    name: str
+    team_name: str
+    position: str | None
+    matches: int
+    starts: int
+    minutes: int
+    rating: float | None
+    adjusted_rating: float | None
+    participation: float
+    clean_sheets: int
+    totals: dict[str, float]
+
+
+class SyncStatusOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    up_to_date: bool
+    overdue_matches: int
+    details_pending: int
+    last_synced_at: datetime | None
+    last_match_date: datetime | None
+    next_match_date: datetime | None
+
+
+class SyncResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    fixtures_synced: int
+    details_synced: int
+    status: SyncStatusOut

@@ -57,6 +57,10 @@ class Match(Base, SourceMixin, TimestampMixin):
     home_score_ht: Mapped[int | None] = mapped_column(Integer)
     away_score_ht: Mapped[int | None] = mapped_column(Integer)
 
+    # When events/lineups/statistics were last fetched. Lets "is everything
+    # up to date?" be answered from the database without calling the provider.
+    details_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     league: Mapped["League"] = relationship()
     season: Mapped["Season"] = relationship(back_populates="matches")
     home_team: Mapped["Team"] = relationship(foreign_keys=[home_team_id])
@@ -65,4 +69,5 @@ class Match(Base, SourceMixin, TimestampMixin):
 
     events: Mapped[list["MatchEvent"]] = relationship(back_populates="match")
     statistics: Mapped[list["MatchStatistic"]] = relationship(back_populates="match")
+    player_stats: Mapped[list["MatchPlayerStat"]] = relationship(back_populates="match")
     predictions: Mapped[list["Prediction"]] = relationship(back_populates="match")

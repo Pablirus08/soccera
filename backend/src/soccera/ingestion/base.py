@@ -14,6 +14,7 @@ from soccera.ingestion.domain import (
     DomainMatchEvent,
     DomainMatchStatistic,
     DomainPlayer,
+    DomainPlayerMatchStat,
     DomainSeason,
     DomainTeam,
 )
@@ -62,3 +63,8 @@ class DataSourceAdapter(ABC):
     @abstractmethod
     def get_fixture_statistics(self, match_source_id: str) -> list[DomainMatchStatistic]:
         ...
+
+    def get_fixture_player_stats(self, match_source_id: str) -> list[DomainPlayerMatchStat]:
+        """Lineups + per-player stat lines for a match. Optional: providers
+        without player-level data keep this default and sync simply skips it."""
+        return []

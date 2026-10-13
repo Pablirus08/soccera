@@ -6,7 +6,7 @@ import { StandingsTable } from "@/components/standings-table"
 import { TopPlayers } from "@/components/top-players"
 import { UpcomingMatches } from "@/components/upcoming-matches"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { LEAGUE } from "@/lib/api"
+import { isMock, LEAGUE, MIN_PLAYER_PARTICIPATION } from "@/lib/api"
 import { lastPlayedRound } from "@/lib/football"
 import { useSnapshot } from "@/lib/league-data"
 
@@ -55,9 +55,12 @@ export function HomePage() {
           <CardTitle className="flex items-center gap-2">
             <StarIcon className="size-4 text-muted-foreground" /> Mejores jugadores
           </CardTitle>
-          <CardDescription>Por posición, según calificación promedio</CardDescription>
+          <CardDescription>
+            Por posición · nivel ajustado por partidos jugados (mín. {MIN_PLAYER_PARTICIPATION * 100}% de
+            los minutos de su equipo)
+          </CardDescription>
           <CardAction>
-            <MockBadge />
+            {isMock && <MockBadge />}
           </CardAction>
         </CardHeader>
         <CardContent>
