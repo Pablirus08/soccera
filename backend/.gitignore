@@ -1,0 +1,50 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+venv/
+env/
+*.sqlite3
+*.db
+/.idea/
+.vscode/
+dist/
+build/
+*.egg-info/
+coverage.xml
+.pytest_cache/
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Postgres local data (if bind-mounted)
+pgdata/
+
+# Logs
+*.log

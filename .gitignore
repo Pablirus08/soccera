@@ -1,0 +1,37 @@
+# Applies to the whole repo; backend/.gitignore adds Python-specific rules.
+
+# Secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+.vite/
+npm-debug.log*
+
+# Local tool settings
+**/.claude/settings.local.json
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
